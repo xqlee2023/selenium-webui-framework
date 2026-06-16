@@ -1,0 +1,51 @@
+# =====================================================================
+# 通知配置 — 钉钉群通知 + 模块负责人映射
+# =====================================================================
+notification:
+  # 是否启用通知
+  enabled: true
+
+  # 钉钉群机器人 Webhook URL
+  dingtalkWebhook: ""   # 留空则从环境变量 DINGTALK_WEBHOOK 读取
+
+  # Allure 报告根 URL（Jenkins 构建后生成的链接）
+  reportBaseUrl: "${BUILD_URL}allure"
+
+  # ========== 模块 → 负责人映射 ==========
+  # 每个模块的测试完成后，@ 对应的负责人
+  # 手机号用于钉钉 @ 功能
+  modules:
+    "LoginTest":
+      name: "登录模块"
+      owner: "张三"
+      mobile: "13800001111"
+    "DashboardTest":
+      name: "工作台模块"
+      owner: "李四"
+      mobile: "13800002222"
+    "CartUITest":
+      name: "购物车模块"
+      owner: "王五"
+      mobile: "13800003333"
+    "OrderFlowUITest":
+      name: "订单流程模块"
+      owner: "赵六"
+      mobile: "13800004444"
+    "DataDrivenTest":
+      name: "数据驱动测试"
+      owner: "张三"
+      mobile: "13800001111"
+    "AIAllFeaturesTest":
+      name: "AI 功能测试"
+      owner: "李四"
+      mobile: "13800002222"
+
+  # 默认接收人（未匹配到的模块走这里）
+  defaultOwner: "测试负责人"
+  defaultMobile: "13800000000"
+
+  # 通知策略
+  notifyOnSuccess: true       # 全部通过时也发通知
+  notifyOnFailure: true       # 失败时通知
+  notifyOnUnstable: true      # 不稳定时通知
+  mentionMode: "per_module"   # per_module（每人只收到自己模块）| all_owners（所有负责人收到完整报告）

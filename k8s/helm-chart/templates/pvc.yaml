@@ -1,0 +1,35 @@
+# =====================================================================
+# Persistent Volume Claims for test results
+# =====================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "selenium-tests.fullname" . }}-results
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "selenium-tests.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.results.persistence.size }}
+  {{- if .Values.results.persistence.storageClass }}
+  storageClassName: {{ .Values.results.persistence.storageClass }}
+  {{- end }}
+{{- if .Values.reporting.allure.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "selenium-tests.fullname" . }}-allure
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "selenium-tests.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.reporting.allure.persistence.size }}
+{{- end }}

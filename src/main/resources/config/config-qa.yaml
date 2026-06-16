@@ -1,0 +1,13 @@
+# =====================================================================
+# QA environment overrides
+# =====================================================================
+# Run with: mvn test -Pqa
+
+baseUrl: "https://qa.example.com"
+browserOptions:
+  headless: true
+execution:
+  parallelCount: 4
+reporting:
+  retryOnFailure: true
+  retryCount: 2

@@ -1,0 +1,127 @@
+# =====================================================================
+# Selenium Grid Docker Compose — 企业级并行测试基础设施
+# =====================================================================
+# 一键启动 Selenium Grid + 多浏览器节点 + 自愈数据库
+#
+# 启动：docker compose up -d
+# 停止：docker compose down
+# 扩缩节点：docker compose up -d --scale chrome=4
+#
+# 访问 Grid Console: http://localhost:4444
+# 配置 hubUrl: http://localhost:4444/wd/hub
+# =====================================================================
+
+services:
+  # ===== Selenium Hub =====
+  selenium-hub:
+    image: selenium/hub:4.30.0
+    container_name: selenium-hub
+    restart: unless-stopped
+    ports:
+      - "4442:4442"   # 事件总线发布
+      - "4443:4443"   # 事件总线订阅
+      - "4444:4444"   # Hub Web 界面 + WebDriver 端点
+    environment:
+      - SE_SESSION_REQUEST_TIMEOUT=300
+      - SE_SESSION_RETRY_INTERVAL=5
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4444/status"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ===== Chrome 节点 =====
+  chrome:
+    image: selenium/node-chrome:4.30.0
+    container_name: selenium-node-chrome
+    restart: unless-stopped
+    shm_size: 2gb
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_NODE_MAX_SESSIONS=4
+      - SE_NODE_SESSION_TIMEOUT=300
+      - SE_VNC_PASSWORD=selenium
+      - SE_OPTS=--log-level FINE
+    ports:
+      - "7900:7900"   # VNC 调试 (http://localhost:7900)
+    volumes:
+      - /dev/shm:/dev/shm
+
+  # ===== Firefox 节点 =====
+  firefox:
+    image: selenium/node-firefox:4.30.0
+    container_name: selenium-node-firefox
+    restart: unless-stopped
+    shm_size: 2gb
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_NODE_MAX_SESSIONS=3
+      - SE_NODE_SESSION_TIMEOUT=300
+    ports:
+      - "7901:7900"   # VNC 调试
+    volumes:
+      - /dev/shm:/dev/shm
+
+  # ===== Edge 节点 =====
+  edge:
+    image: selenium/node-edge:4.30.0
+    container_name: selenium-node-edge
+    restart: unless-stopped
+    shm_size: 2gb
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - SE_NODE_MAX_SESSIONS=3
+      - SE_NODE_SESSION_TIMEOUT=300
+    ports:
+      - "7902:7900"   # VNC 调试
+    volumes:
+      - /dev/shm:/dev/shm
+
+  # ===== Healenium 后端（可选，自愈数据库） =====
+  healenium-postgres:
+    image: postgres:16-alpine
+    container_name: healenium-db
+    restart: unless-stopped
+    profiles:
+      - healenium
+    environment:
+      - POSTGRES_DB=healenium
+      - POSTGRES_USER=healenium
+      - POSTGRES_PASSWORD=healenium
+    volumes:
+      - healenium-db-data:/var/lib/postgresql/data
+
+  healenium-backend:
+    image: healenium/hlm-backend:3.5.6
+    container_name: healenium-backend
+    restart: unless-stopped
+    profiles:
+      - healenium
+    depends_on:
+      - healenium-postgres
+    ports:
+      - "7878:7878"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://healenium-postgres:5432/healenium
+      - SPRING_DATASOURCE_USERNAME=healenium
+      - SPRING_DATASOURCE_PASSWORD=healenium
+
+volumes:
+  healenium-db-data:

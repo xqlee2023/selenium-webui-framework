@@ -1,0 +1,59 @@
+# =====================================================================
+# Kubernetes Job for running Selenium WebUI tests
+# =====================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "selenium-tests.fullname" . }}-runner
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "selenium-tests.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+spec:
+  ttlSecondsAfterFinished: 86400
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: {{ include "selenium-tests.name" . }}-runner
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: test-runner
+          image: "{{ .Values.testRunner.image.repository }}:{{ .Values.testRunner.image.tag }}"
+          imagePullPolicy: {{ .Values.testRunner.image.pullPolicy }}
+          env:
+            - name: TEST_ENV
+              value: "{{ .Values.testRunner.env.TEST_ENV }}"
+            - name: BROWSER
+              value: "{{ .Values.testRunner.env.BROWSER }}"
+            - name: HEADLESS
+              value: "{{ .Values.testRunner.env.HEADLESS }}"
+            - name: PARALLEL_COUNT
+              value: "{{ .Values.testRunner.env.PARALLEL_COUNT }}"
+            - name: HUB_URL
+              value: "http://{{ include "selenium-tests.fullname" . }}-hub:4444/wd/hub"
+          resources:
+            {{- toYaml .Values.testRunner.resources | nindent 12 }}
+          volumeMounts:
+            - name: results
+              mountPath: /app/allure-results
+            - name: results
+              mountPath: /app/screenshots
+            - name: results
+              mountPath: /app/logs
+          command:
+            - mvn
+            - clean
+            - test
+            - "-P{{ .Values.testRunner.env.TEST_ENV }}"
+            - "-Dbrowser={{ .Values.testRunner.env.BROWSER }}"
+            - "-Dheadless={{ .Values.testRunner.env.HEADLESS }}"
+            - "-Dparallel.count={{ .Values.testRunner.env.PARALLEL_COUNT }}"
+            - "-DhubUrl=http://{{ include "selenium-tests.fullname" . }}-hub:4444/wd/hub"
+      volumes:
+        - name: results
+          persistentVolumeClaim:
+            claimName: {{ include "selenium-tests.fullname" . }}-results

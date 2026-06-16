@@ -1,0 +1,152 @@
+# =====================================================================
+# Selenium Hub Deployment (conditional)
+# =====================================================================
+{{- if .Values.grid.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "selenium-tests.fullname" . }}-hub
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: selenium-hub
+    {{- include "selenium-tests.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.grid.hub.serviceType }}
+  ports:
+    - port: 4444
+      targetPort: 4444
+      name: web
+    - port: 4442
+      targetPort: 4442
+      name: pub
+    - port: 4443
+      targetPort: 4443
+      name: sub
+  selector:
+    app: selenium-hub
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "selenium-tests.fullname" . }}-hub
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: selenium-hub
+    {{- include "selenium-tests.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.grid.hub.replicas }}
+  selector:
+    matchLabels:
+      app: selenium-hub
+  template:
+    metadata:
+      labels:
+        app: selenium-hub
+    spec:
+      containers:
+        - name: selenium-hub
+          image: selenium/hub:4.30
+          ports:
+            - containerPort: 4444
+            - containerPort: 4442
+            - containerPort: 4443
+          resources:
+            {{- toYaml .Values.grid.hub.resources | nindent 12 }}
+          env:
+            - name: SE_GRID_MAX_SESSION
+              value: "16"
+            - name: SE_GRID_NEW_SESSION_WAIT_CYCLE
+              value: "500"
+          readinessProbe:
+            httpGet:
+              path: /wd/hub/status
+              port: 4444
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+{{- if .Values.grid.chrome.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "selenium-tests.fullname" . }}-chrome
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: selenium-chrome
+    {{- include "selenium-tests.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.grid.chrome.replicas }}
+  selector:
+    matchLabels:
+      app: selenium-chrome
+  template:
+    metadata:
+      labels:
+        app: selenium-chrome
+    spec:
+      containers:
+        - name: selenium-chrome
+          image: selenium/node-chrome:4.30
+          resources:
+            {{- toYaml .Values.grid.chrome.resources | nindent 12 }}
+          env:
+            - name: SE_EVENT_BUS_HOST
+              value: {{ include "selenium-tests.fullname" . }}-hub
+            - name: SE_EVENT_BUS_PUBLISH_PORT
+              value: "4442"
+            - name: SE_EVENT_BUS_SUBSCRIBE_PORT
+              value: "4443"
+            - name: SE_NODE_MAX_SESSIONS
+              value: "4"
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+{{- end }}
+---
+{{- if .Values.grid.firefox.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "selenium-tests.fullname" . }}-firefox
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: selenium-firefox
+    {{- include "selenium-tests.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.grid.firefox.replicas }}
+  selector:
+    matchLabels:
+      app: selenium-firefox
+  template:
+    metadata:
+      labels:
+        app: selenium-firefox
+    spec:
+      containers:
+        - name: selenium-firefox
+          image: selenium/node-firefox:4.30
+          resources:
+            {{- toYaml .Values.grid.firefox.resources | nindent 12 }}
+          env:
+            - name: SE_EVENT_BUS_HOST
+              value: {{ include "selenium-tests.fullname" . }}-hub
+            - name: SE_EVENT_BUS_PUBLISH_PORT
+              value: "4442"
+            - name: SE_EVENT_BUS_SUBSCRIBE_PORT
+              value: "4443"
+            - name: SE_NODE_MAX_SESSIONS
+              value: "4"
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+{{- end }}
+{{- end }}

@@ -1,0 +1,187 @@
+# =====================================================================
+# GitHub Actions CI Pipeline — 企业级持续集成
+# =====================================================================
+# 每次 push 和 PR 自动运行：
+#   1. 编译与静态分析
+#   2. Mock 测试（零依赖，快速反馈）
+#   3. 浏览器矩阵测试（Chrome + Firefox + Edge）
+#   4. Allure 报告生成与上传
+#   5. 并行度自动调整
+# =====================================================================
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop, 'release/**']
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+      - 'docker-compose.yml'
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      browser:
+        description: 'Target browser (chrome, firefox, edge, all)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - chrome
+          - firefox
+          - edge
+      parallel_count:
+        description: 'Parallel test count'
+        required: false
+        default: '4'
+        type: string
+
+env:
+  JAVA_VERSION: '17'
+  MAVEN_OPTS: '-Dmaven.repo.local=$HOME/.m2/repository -Xmx4g'
+  ALLURE_RESULTS: allure-results
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ===== 1. 代码质量检查 =====
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Compile
+        run: mvn compile -q
+
+      - name: Check dependency convergence
+        run: mvn dependency:tree -q
+
+  # ===== 2. Mock 测试（零依赖，无浏览器） =====
+  mock-tests:
+    name: Mock Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run Mock Tests
+        run: mvn test -pl . -Dtest="mock.*" -DfailIfNoTests=false
+
+  # ===== 3. 浏览器矩阵测试 =====
+  browser-tests:
+    name: Browser Tests (${{ matrix.browser }})
+    needs: [lint, mock-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chrome, firefox, edge]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Start Selenium Grid
+        run: |
+          docker compose up -d selenium-hub ${{ matrix.browser }}
+          echo "Waiting for Selenium Grid..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4444/status > /dev/null 2>&1; then
+              echo "Grid ready after ${i}s"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Run Tests (${{ matrix.browser }})
+        run: |
+          mvn test \
+            -Dbrowser=${{ matrix.browser }} \
+            -DexecutionMode=REMOTE \
+            -DhubUrl=http://localhost:4444/wd/hub \
+            -Dparallel.count=4
+
+      - name: Upload Allure Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-${{ matrix.browser }}
+          path: allure-results/
+          retention-days: 14
+
+      - name: Upload Screenshots (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ matrix.browser }}
+          path: screenshots/
+          retention-days: 7
+
+  # ===== 4. 合并报告 =====
+  allure-report:
+    name: Allure Report
+    needs: [browser-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download All Results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: allure-results-*
+          merge-multiple: true
+          path: ${{ env.ALLURE_RESULTS }}
+
+      - name: Generate Allure Report
+        uses: simple-elf/allure-report-action@v1.10
+        with:
+          allure_results: ${{ env.ALLURE_RESULTS }}
+          allure_report: allure-report
+          keep_history: true
+
+      - name: Deploy Report to Pages
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: allure-report
+          destination_dir: ${{ github.run_id }}
+
+  # ===== 5. 通知 =====
+  notify:
+    name: Notify
+    needs: [allure-report, browser-tests]
+    if: always() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check test results
+        run: |
+          echo "Pipeline completed: ${{ needs.browser-tests.result }}"
+          echo "Report URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ github.run_id }}/index.html"

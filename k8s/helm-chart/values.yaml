@@ -1,0 +1,71 @@
+# =====================================================================
+# Helm values for Selenium WebUI Test Framework
+# =====================================================================
+
+# Namespace for tests
+namespace: selenium-tests
+
+# Test runner configuration
+testRunner:
+  image:
+    repository: your-registry/selenium-webui-tests
+    tag: latest
+    pullPolicy: Always
+  env:
+    TEST_ENV: dev
+    BROWSER: chrome
+    HEADLESS: "true"
+    PARALLEL_COUNT: "4"
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+# Selenium Grid configuration
+grid:
+  enabled: true
+  hub:
+    serviceType: ClusterIP
+    replicas: 1
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+  chrome:
+    enabled: true
+    replicas: 2
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+  firefox:
+    enabled: true
+    replicas: 1
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+
+# Storage for results
+results:
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+
+# Reporting
+reporting:
+  allure:
+    enabled: true
+    persistence:
+      size: 5Gi
+
+# Notifications (optional)
+notifications:
+  slack:
+    webhook: ""
+  teams:
+    webhook: ""

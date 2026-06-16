@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>反重力装置 - AG-9000 工程概念设计</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0f; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; color: #c0d0e0; }
+  canvas { display: block; }
+
+  /* HUD overlay */
+  #hud {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 10;
+  }
+  #title {
+    position: absolute; top: 28px; left: 50%; transform: translateX(-50%);
+    font-size: 14px; letter-spacing: 6px; text-transform: uppercase;
+    color: rgba(180,220,255,0.5);
+    text-shadow: 0 0 30px rgba(0,120,255,0.15);
+    font-weight: 300;
+  }
+  #title strong { font-weight: 700; color: rgba(200,230,255,0.7); }
+  #part-no {
+    position: absolute; top: 56px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; letter-spacing: 3px;
+    color: rgba(100,160,255,0.3); font-weight: 300;
+  }
+  #specs {
+    position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 48px; font-size: 11px; letter-spacing: 1px;
+    color: rgba(140,190,240,0.35); font-weight: 300;
+  }
+  #specs span { text-align: center; }
+  #specs .val { font-size: 16px; color: rgba(160,210,255,0.5); font-weight: 400; display: block; margin-bottom: 4px; letter-spacing: 0; }
+  #controls-hint {
+    position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; letter-spacing: 2px;
+    color: rgba(100,160,255,0.2); font-weight: 300;
+  }
+  #corner-tl, #corner-tr, #corner-bl, #corner-br {
+    position: absolute; width: 40px; height: 40px;
+    border-color: rgba(60,140,255,0.12); border-style: solid;
+  }
+  #corner-tl { top: 16px; left: 16px; border-width: 1px 0 0 1px; }
+  #corner-tr { top: 16px; right: 16px; border-width: 1px 1px 0 0; }
+  #corner-bl { bottom: 16px; left: 16px; border-width: 0 0 1px 1px; }
+  #corner-br { bottom: 16px; right: 16px; border-width: 0 1px 1px 0; }
+  #scanline {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 5;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,40,80,0.03) 2px, rgba(0,40,80,0.03) 4px);
+  }
+  @media (max-width: 768px) {
+    #specs { gap: 20px; font-size: 9px; flex-wrap: wrap; justify-content: center; max-width: 90%; }
+    #specs .val { font-size: 13px; }
+    #title { font-size: 11px; top: 18px; }
+    #part-no { font-size: 9px; top: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div id="corner-tl"></div><div id="corner-tr"></div>
+  <div id="corner-bl"></div><div id="corner-br"></div>
+  <div id="title"><strong>反重力装置</strong> &nbsp;·&nbsp; 型号 AG-9000</div>
+  <div id="part-no">GRAVITATIONAL ANOMALY GENERATOR · 工程概念设计</div>
+  <div id="specs">
+    <span><span class="val">9.8T</span>反重力推力</span>
+    <span><span class="val">Φ2.4m</span>发生器直径</span>
+    <span><span class="val">12MW</span>额定功率</span>
+    <span><span class="val">99.97%</span>能量效率</span>
+  </div>
+  <div id="controls-hint">▼ 拖动旋转 · 滚轮缩放</div>
+</div>
+<div id="scanline"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+// ─── Scene Setup ───────────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x080810);
+scene.fog = new THREE.Fog(0x080810, 12, 25);
+
+const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 50);
+camera.position.set(5, 3, 7);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+renderer.shadowMap.bias = 0.0001;
+document.body.prepend(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(window.innerWidth, window.innerHeight);
+labelRenderer.domElement.style.position = 'fixed';
+labelRenderer.domElement.style.top = '0';
+labelRenderer.domElement.style.pointerEvents = 'none';
+labelRenderer.domElement.style.zIndex = '2';
+document.body.prepend(labelRenderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.minDistance = 2.5;
+controls.maxDistance = 15;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.6;
+controls.target.set(0, 0, 0);
+controls.update();
+
+// ─── Lights ────────────────────────────────────────────
+const ambient = new THREE.AmbientLight(0x223355, 0.4);
+scene.add(ambient);
+
+const keyLight = new THREE.DirectionalLight(0x4488ff, 2.5);
+keyLight.position.set(6, 10, 8);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(1024, 1024);
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0x88ccff, 0.6);
+fillLight.position.set(-4, 2, -6);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0x00aaff, 0.8);
+rimLight.position.set(-2, -3, 5);
+scene.add(rimLight);
+
+const topLight = new THREE.DirectionalLight(0x6688cc, 0.3);
+topLight.position.set(0, 8, 0);
+scene.add(topLight);
+
+// ─── Environment ───────────────────────────────────────
+const gridHelper = new THREE.GridHelper(14, 20, 0x1a2a4a, 0x0a1a2a);
+gridHelper.position.y = -1.6;
+scene.add(gridHelper);
+
+// Ground ring
+const groundRing = new THREE.Mesh(
+  new THREE.RingGeometry(2.2, 2.8, 64),
+  new THREE.MeshBasicMaterial({
+    color: 0x0a1a3a,
+    transparent: true,
+    opacity: 0.3,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  })
+);
+groundRing.rotation.x = -Math.PI / 2;
+groundRing.position.y = -1.58;
+scene.add(groundRing);
+
+const groundRing2 = new THREE.Mesh(
+  new THREE.RingGeometry(3.0, 4.0, 64),
+  new THREE.MeshBasicMaterial({
+    color: 0x0a1a3a,
+    transparent: true,
+    opacity: 0.12,
+    side: THREE.DoubleSide,
+    depthWrite: false
+  })
+);
+groundRing2.rotation.x = -Math.PI / 2;
+groundRing2.position.y = -1.58;
+scene.add(groundRing2);
+
+// Stars
+const starsGeo = new THREE.BufferGeometry();
+const starCount = 2000;
+const starPos = new Float32Array(starCount * 3);
+for (let i = 0; i < starCount * 3; i++) starPos[i] = (Math.random() - 0.5) * 200;
+starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+const starMat = new THREE.PointsMaterial({
+  color: 0x4488cc,
+  size: 0.08,
+  transparent: true,
+  opacity: 0.6,
+  blending: THREE.AdditiveBlending
+});
+scene.add(new THREE.Points(starsGeo, starMat));
+
+// ─── CREATE THE ANTI-GRAVITY DEVICE ───────────────────
+
+const device = new THREE.Group();
+
+// ─── 1. Base mounting plate ───────────────────────────
+const baseMat = new THREE.MeshStandardMaterial({
+  color: 0x2a3a5a,
+  metalness: 0.85,
+  roughness: 0.35,
+  envMapIntensity: 0.8
+});
+const base = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.0, 0.15, 48), baseMat);
+base.position.y = -1.4;
+base.receiveShadow = true;
+base.castShadow = true;
+device.add(base);
+
+// Base ring detail
+const baseRingMat = new THREE.MeshStandardMaterial({
+  color: 0x4a6a9a,
+  metalness: 0.9,
+  roughness: 0.25
+});
+for (let i = 0; i < 12; i++) {
+  const angle = (i / 12) * Math.PI * 2;
+  const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.08, 8), baseRingMat);
+  bolt.position.set(Math.cos(angle) * 1.7, -1.32, Math.sin(angle) * 1.7);
+  device.add(bolt);
+}
+
+// ─── 2. Main structural frame ────────────────────────
+const frameMat = new THREE.MeshStandardMaterial({
+  color: 0x3a4a6a,
+  metalness: 0.8,
+  roughness: 0.4,
+  envMapIntensity: 0.6
+});
+const frameMatDark = new THREE.MeshStandardMaterial({
+  color: 0x1a2a3a,
+  metalness: 0.9,
+  roughness: 0.3,
+  envMapIntensity: 0.5
+});
+
+// Central pillar
+const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, 2.2, 24), frameMat);
+pillar.position.y = -0.3;
+pillar.castShadow = true;
+device.add(pillar);
+
+// Outer support columns
+for (let i = 0; i < 4; i++) {
+  const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.0, 12), frameMatDark);
+  col.position.set(Math.cos(angle) * 1.2, -0.25, Math.sin(angle) * 1.2);
+  col.castShadow = true;
+  device.add(col);
+}
+
+// Cross braces
+for (let level = 0; level < 3; level++) {
+  const yPos = -0.9 + level * 0.7;
+  for (let i = 0; i < 4; i++) {
+    const angle = (i / 4) * Math.PI * 2 + Math.PI / 8;
+    const brace = new THREE.Mesh(
+      new THREE.BoxGeometry(0.03, 0.03, 1.5),
+      frameMatDark
+    );
+    brace.position.set(Math.cos(angle) * 0.7, yPos, Math.sin(angle) * 0.7);
+    brace.lookAt(0, yPos, 0);
+    brace.rotateZ(Math.PI / 2);
+    device.add(brace);
+  }
+}
+
+// ─── 3. Gravity Core ──────────────────────────────────
+const coreGroup = new THREE.Group();
+coreGroup.position.y = 0;
+
+// Outer core shell
+const coreShellMat = new THREE.MeshStandardMaterial({
+  color: 0x1a3050,
+  metalness: 0.95,
+  roughness: 0.2,
+  envMapIntensity: 1.0
+});
+const coreShell = new THREE.Mesh(new THREE.SphereGeometry(0.65, 32, 32), coreShellMat);
+coreShell.castShadow = true;
+device.add(coreShell);
+
+// Core energy sphere
+const coreEnergyMat = new THREE.MeshBasicMaterial({
+  color: 0x0088ff,
+  transparent: true,
+  opacity: 0.6
+});
+const coreEnergy = new THREE.Mesh(new THREE.SphereGeometry(0.52, 32, 32), coreEnergyMat);
+device.add(coreEnergy);
+
+// Inner core glow
+const innerGlowMat = new THREE.MeshBasicMaterial({
+  color: 0x44ccff,
+  transparent: true,
+  opacity: 0.3
+});
+const innerGlow = new THREE.Mesh(new THREE.SphereGeometry(0.38, 24, 24), innerGlowMat);
+device.add(innerGlow);
+
+// Core center point
+const centerMat = new THREE.MeshBasicMaterial({
+  color: 0x88eeff,
+  transparent: true,
+  opacity: 0.8
+});
+const centerPoint = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), centerMat);
+device.add(centerPoint);
+
+// ─── 4. Gravitational Field Coils ─────────────────────
+const coilMat = new THREE.MeshStandardMaterial({
+  color: 0x4a7aaa,
+  metalness: 0.9,
+  roughness: 0.2,
+  envMapIntensity: 1.0
+});
+const coilMatGlow = new THREE.MeshStandardMaterial({
+  color: 0x2a5a9a,
+  metalness: 0.95,
+  roughness: 0.15,
+  envMapIntensity: 1.2,
+  emissive: 0x004488,
+  emissiveIntensity: 0.3
+});
+
+// Primary coil ring (inner)
+const primRing = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.06, 24, 32), coilMatGlow);
+primRing.rotation.x = Math.PI / 2;
+primRing.position.y = 0;
+primRing.castShadow = true;
+device.add(primRing);
+
+// Secondary coil ring
+const secRing = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.05, 24, 36), coilMat);
+secRing.rotation.x = Math.PI / 3;
+secRing.position.y = 0.1;
+device.add(secRing);
+
+const secRing2 = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.05, 24, 36), coilMat);
+secRing2.rotation.x = -Math.PI / 3;
+secRing2.position.y = -0.1;
+device.add(secRing2);
+
+// Outer field coils (large rings)
+for (let i = 0; i < 3; i++) {
+  const radius = 1.3 + i * 0.2;
+  const tilt = (i - 1) * 0.3;
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(radius, 0.04, 16, 48),
+    new THREE.MeshStandardMaterial({
+      color: 0x3a6a9a,
+      metalness: 0.85,
+      roughness: 0.3,
+      emissive: 0x002244,
+      emissiveIntensity: 0.1 + i * 0.05
+    })
+  );
+  ring.rotation.x = Math.PI / 2 + tilt;
+  ring.rotation.z = tilt * 0.5;
+  ring.position.y = i * 0.15 - 0.15;
+  device.add(ring);
+}
+
+// ─── 5. Energy Conduits / Cables ──────────────────────
+const conduitMat = new THREE.MeshStandardMaterial({
+  color: 0x2a4a6a,
+  metalness: 0.7,
+  roughness: 0.6
+});
+const conduitMatGlow = new THREE.MeshStandardMaterial({
+  color: 0x0066cc,
+  metalness: 0.5,
+  roughness: 0.4,
+  emissive: 0x0044aa,
+  emissiveIntensity: 0.5
+});
+
+for (let i = 0; i < 6; i++) {
+  const angle = (i / 6) * Math.PI * 2;
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(Math.cos(angle) * 0.9, -0.2, Math.sin(angle) * 0.9),
+    new THREE.Vector3(Math.cos(angle) * 1.1, 0.3, Math.sin(angle) * 1.1),
+    new THREE.Vector3(Math.cos(angle) * 0.7, 0.7, Math.sin(angle) * 0.7)
+  ]);
+  const tube = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 12, 0.025, 8, false),
+    i % 2 === 0 ? conduitMat : conduitMatGlow
+  );
+  device.add(tube);
+}
+
+// ─── 6. Cooling System ────────────────────────────────
+const radMat = new THREE.MeshStandardMaterial({
+  color: 0x4a6a8a,
+  metalness: 0.8,
+  roughness: 0.45,
+  envMapIntensity: 0.5
+});
+
+// Radiator fins around the device
+for (let i = 0; i < 16; i++) {
+  const angle = (i / 16) * Math.PI * 2;
+  const fin = new THREE.Mesh(
+    new THREE.BoxGeometry(0.02, 0.4, 0.2),
+    radMat
+  );
+  fin.position.set(Math.cos(angle) * 1.65, 0.2, Math.sin(angle) * 1.65);
+  fin.lookAt(0, 0.2, 0);
+  fin.rotateZ(Math.PI / 2);
+  device.add(fin);
+}
+
+// Upper radiator ring
+const upperRad = new THREE.Mesh(
+  new THREE.TorusGeometry(1.65, 0.03, 12, 48),
+  radMat
+);
+upperRad.rotation.x = Math.PI / 2;
+upperRad.position.y = 0.45;
+device.add(upperRad);
+
+const lowerRad = new THREE.Mesh(
+  new THREE.TorusGeometry(1.65, 0.03, 12, 48),
+  radMat
+);
+lowerRad.rotation.x = Math.PI / 2;
+lowerRad.position.y = -0.05;
+device.add(lowerRad);
+
+// ─── 7. Gravity Field Emitters ────────────────────────
+const emitterMat = new THREE.MeshStandardMaterial({
+  color: 0x5a8aba,
+  metalness: 0.9,
+  roughness: 0.2,
+  emissive: 0x004488,
+  emissiveIntensity: 0.2
+});
+
+for (let i = 0; i < 4; i++) {
+  const angle = (i / 4) * Math.PI * 2;
+  const emitter = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12, 0.18, 0.25, 12),
+    emitterMat
+  );
+  emitter.position.set(Math.cos(angle) * 1.45, -0.1, Math.sin(angle) * 1.45);
+  emitter.rotation.z = -Math.PI / 2;
+  emitter.rotation.x = angle;
+  emitter.castShadow = true;
+  device.add(emitter);
+
+  // Emitter tip glow
+  const tipGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(0.04, 8, 8),
+    new THREE.MeshBasicMaterial({
+      color: 0x44aaff,
+      transparent: true,
+      opacity: 0.7
+    })
+  );
+  tipGlow.position.copy(emitter.position);
+  tipGlow.position.x += Math.cos(angle) * 0.15;
+  tipGlow.position.z += Math.sin(angle) * 0.15;
+  device.add(tipGlow);
+}
+
+// ─── 8. Upper Control Module ──────────────────────────
+const ctrlMat = new THREE.MeshStandardMaterial({
+  color: 0x2a3a5a,
+  metalness: 0.85,
+  roughness: 0.3
+});
+const ctrlModule = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 0.3, 16), ctrlMat);
+ctrlModule.position.y = 0.9;
+ctrlModule.castShadow = true;
+device.add(ctrlModule);
+
+// Control panel details
+const panelMat = new THREE.MeshStandardMaterial({
+  color: 0x0a1a2a,
+  metalness: 0.6,
+  roughness: 0.7,
+  emissive: 0x004488,
+  emissiveIntensity: 0.1
+});
+for (let i = 0; i < 4; i++) {
+  const angle = (i / 4) * Math.PI * 2;
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 0.12), panelMat);
+  panel.position.set(Math.cos(angle) * 0.36, 0.9, Math.sin(angle) * 0.36);
+  panel.lookAt(0, 0.9, 0);
+  device.add(panel);
+}
+
+// Top antenna
+const antennaMat = new THREE.MeshStandardMaterial({
+  color: 0x6a8aaa,
+  metalness: 0.9,
+  roughness: 0.2
+});
+const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.015, 0.3, 8), antennaMat);
+antenna.position.y = 1.15;
+device.add(antenna);
+
+const antennaTip = new THREE.Mesh(
+  new THREE.SphereGeometry(0.025, 8, 8),
+  new THREE.MeshBasicMaterial({ color: 0x66bbff })
+);
+antennaTip.position.y = 1.3;
+device.add(antennaTip);
+
+// ─── 9. Gravity Wave Rings (outer decorative + functional) ──
+for (let i = 0; i < 3; i++) {
+  const radius = 1.15 + i * 0.15;
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(radius, 0.015, 8, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0x4488cc,
+      transparent: true,
+      opacity: 0.15 + i * 0.05
+    })
+  );
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = (i - 1) * 0.1;
+  device.add(ring);
+}
+
+// ─── 10. Field projectors (bottom) ────────────────────
+const projMat = new THREE.MeshStandardMaterial({
+  color: 0x3a6a9a,
+  metalness: 0.85,
+  roughness: 0.25,
+  emissive: 0x002266,
+  emissiveIntensity: 0.15
+});
+for (let i = 0; i < 8; i++) {
+  const angle = (i / 8) * Math.PI * 2;
+  const proj = new THREE.Mesh(
+    new THREE.ConeGeometry(0.04, 0.12, 8),
+    projMat
+  );
+  proj.position.set(Math.cos(angle) * 0.95, -1.1, Math.sin(angle) * 0.95);
+  proj.rotation.x = Math.PI;
+  device.add(proj);
+}
+
+// ─── 11. Mounting brackets (for spaceship) ────────────
+const bracketMat = new THREE.MeshStandardMaterial({
+  color: 0x3a4a5a,
+  metalness: 0.9,
+  roughness: 0.3,
+  envMapIntensity: 0.5
+});
+for (let i = 0; i < 4; i++) {
+  const angle = (i / 4) * Math.PI * 2;
+  const bracket = new THREE.Mesh(
+    new THREE.BoxGeometry(0.25, 0.08, 0.06),
+    bracketMat
+  );
+  bracket.position.set(Math.cos(angle) * 1.95, -1.3, Math.sin(angle) * 1.95);
+  bracket.lookAt(0, -1.3, 0);
+  device.add(bracket);
+
+  const bracketArm = new THREE.Mesh(
+    new THREE.BoxGeometry(0.06, 0.06, 0.35),
+    bracketMat
+  );
+  bracketArm.position.set(Math.cos(angle) * (1.95 + 0.15), -1.3, Math.sin(angle) * (1.95 + 0.15));
+  bracketArm.lookAt(0, -1.3, 0);
+  bracketArm.rotateY(Math.PI / 2);
+  device.add(bracketArm);
+
+  // Mounting hole
+  const hole = new THREE.Mesh(
+    new THREE.TorusGeometry(0.03, 0.008, 8, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0x1a2a3a,
+      metalness: 0.5,
+      roughness: 0.8
+    })
+  );
+  hole.position.set(Math.cos(angle) * (1.95 + 0.15), -1.3 + 0.04, Math.sin(angle) * (1.95 + 0.15));
+  hole.rotation.x = Math.PI / 2;
+  device.add(hole);
+}
+
+scene.add(device);
+
+// ─── Labels (CSS2D) ───────────────────────────────────
+function createLabel(text, yOffset, color = '#4488cc') {
+  const div = document.createElement('div');
+  div.textContent = text;
+  div.style.color = color;
+  div.style.fontSize = '10px';
+  div.style.fontFamily = 'Segoe UI, sans-serif';
+  div.style.fontWeight = '300';
+  div.style.letterSpacing = '2px';
+  div.style.textShadow = '0 0 20px rgba(0,80,200,0.4), 0 0 60px rgba(0,40,120,0.2)';
+  div.style.background = 'rgba(8,12,24,0.5)';
+  div.style.padding = '2px 10px';
+  div.style.borderLeft = '1px solid rgba(68,136,204,0.3)';
+  div.style.backdropFilter = 'blur(4px)';
+  div.style.pointerEvents = 'none';
+  const label = new CSS2DObject(div);
+  label.position.set(0, yOffset, 0);
+  return label;
+}
+
+device.add(createLabel('引力核心', 1.6, '#66bbff'));
+device.add(createLabel('场线圈 · Φ1.7m', -1.7, '#4488cc'));
+device.add(createLabel('散热模组', 1.8, '#4488cc'));
+device.add(createLabel('控制模块', 2.0, '#4488cc'));
+device.add(createLabel('飞船安装支架', -1.6, '#4488cc'));
+
+// ─── Particles (ambient glow dust around device) ──────
+const particleCount = 800;
+const particleGeo = new THREE.BufferGeometry();
+const particlePos = new Float32Array(particleCount * 3);
+const particleSizes = new Float32Array(particleCount);
+for (let i = 0; i < particleCount; i++) {
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  const r = 1.2 + Math.random() * 1.8;
+  particlePos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+  particlePos[i*3+1] = (Math.random() - 0.5) * 2.5;
+  particlePos[i*3+2] = r * Math.sin(phi) * Math.sin(theta);
+  particleSizes[i] = 0.008 + Math.random() * 0.015;
+}
+particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
+particleGeo.setAttribute('size', new THREE.BufferAttribute(particleSizes, 1));
+
+const particleMat = new THREE.PointsMaterial({
+  color: 0x4488ff,
+  size: 0.012,
+  transparent: true,
+  opacity: 0.3,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  sizeAttenuation: true
+});
+const particles = new THREE.Points(particleGeo, particleMat);
+scene.add(particles);
+
+// ─── Animate ───────────────────────────────────────────
+const clock = new THREE.Clock();
+
+function animate() {
+  const t = clock.getElapsedTime();
+
+  // Core pulsing
+  coreEnergy.material.opacity = 0.5 + Math.sin(t * 0.8) * 0.15;
+  innerGlow.scale.setScalar(1 + Math.sin(t * 1.2) * 0.03);
+  centerPoint.scale.setScalar(1 + Math.sin(t * 2.0) * 0.1);
+
+  // Ring rotations
+  primRing.rotation.z = t * 0.3;
+  secRing.rotation.z = t * 0.5;
+  secRing2.rotation.z = -t * 0.4;
+
+  // Outer rings
+  const outerRings = device.children.filter(c =>
+    c.geometry?.type === 'TorusGeometry' &&
+    c.material?.color?.getHex() === 0x4488cc
+  );
+  outerRings.forEach((r, i) => {
+    r.rotation.z = t * (0.2 + i * 0.1);
+  });
+
+  // Particle drift
+  const pos = particles.geometry.attributes.position.array;
+  for (let i = 0; i < particleCount; i++) {
+    pos[i*3+1] += Math.sin(t * 0.3 + i * 0.01) * 0.0005;
+    if (pos[i*3+1] > 1.5) pos[i*3+1] = -1.5;
+    if (pos[i*3+1] < -1.5) pos[i*3+1] = 1.5;
+  }
+  particles.geometry.attributes.position.needsUpdate = true;
+
+  // Emitter glow pulse
+  device.children.forEach(c => {
+    if (c.geometry?.type === 'SphereGeometry' && c.material?.color?.getHex() === 0x44aaff) {
+      c.material.opacity = 0.5 + Math.sin(t * 1.5 + c.position.x) * 0.3;
+    }
+  });
+
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+animate();
+
+// ─── Resize ───────────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  labelRenderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

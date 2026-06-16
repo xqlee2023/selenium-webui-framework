@@ -1,0 +1,46 @@
+# ===== Java =====
+*.class
+*.jar
+*.war
+*.nar
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# ===== IDE =====
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+*.swo
+*~
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+*.log
+
+# ===== Build =====
+dependency-reduced-pom.xml
+
+# ===== Test Artifacts =====
+allure-results/
+allure-report/
+screenshots/
+dom-snapshots/
+test-output/
+
+# ===== Environment =====
+.env
+*.env.local
+
+# ===== Docker =====
+healenium-db-data/
+
+# ===== Logs =====
+logs/
+*.log.gz

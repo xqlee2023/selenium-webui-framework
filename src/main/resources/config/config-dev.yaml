@@ -1,0 +1,10 @@
+# =====================================================================
+# Development environment overrides
+# =====================================================================
+# These values override config.yaml when running with -Pdev (default)
+
+baseUrl: "https://dev.example.com"
+browserOptions:
+  headless: false
+execution:
+  parallelCount: 2

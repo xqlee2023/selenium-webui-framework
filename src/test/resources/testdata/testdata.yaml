@@ -1,0 +1,19 @@
+# Test Data for various test scenarios
+login:
+  valid_users:
+    - username: admin
+      password: password123
+      expected: success
+    - username: user1
+      password: pass456
+      expected: success
+  invalid_users:
+    - username: invalid
+      password: wrong
+      expected: failure
+search:
+  keywords:
+    - selenium
+    - automation
+    - testng
+    - allure

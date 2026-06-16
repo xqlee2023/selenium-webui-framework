@@ -1,0 +1,108 @@
+# =====================================================================
+# Selenium WebUI Framework - Default Configuration (dev environment)
+# =====================================================================
+# Environment-specific overrides in config-dev.yaml, config-qa.yaml, config-prod.yaml
+# System properties override everything: -Dbrowser=firefox -Dheadless=true
+
+# Browser: CHROME, FIREFOX, EDGE, SAFARI
+browser: CHROME
+
+# Environment: DEV, QA, STAGING, PRODUCTION
+environment: DEV
+
+# Execution mode: LOCAL, REMOTE, GRID, DOCKER, CLOUD
+executionMode: LOCAL
+
+# Application base URL
+baseUrl: "https://example.com"
+
+# Grid/Hub URL (for REMOTE/GRID modes)
+hubUrl: "http://localhost:4444/wd/hub"
+
+# ========== Timeouts ==========
+timeouts:
+  implicitWait: 10          # seconds
+  explicitWait: 30          # seconds
+  pageLoadWait: 60          # seconds
+  pollingInterval: 500      # ms (FluentWait polling)
+
+# ========== Browser Options ==========
+browserOptions:
+  headless: false
+  maximize: true
+  arguments:
+    - "--disable-notifications"
+    - "--disable-popup-blocking"
+  preferences:
+    # Chrome preferences
+    download.default_directory: "${user.dir}/downloads"
+    profile.default_content_setting_values.notifications: 2
+
+# ========== Reporting ==========
+reporting:
+  screenshotOnFailure: true
+  retryOnFailure: true
+  retryCount: 1
+  allureResultsDir: "allure-results"
+  screenshotDir: "screenshots"
+  screenshotRetention:
+    enabled: true
+    maxAgeDays: 30
+    maxCount: 1000
+    autoCleanOnStart: true
+  adaptiveRetry: true
+  maxRetryCount: 5
+
+# ========== Execution ==========
+execution:
+  parallelCount: 2
+
+# ========== AI Features ==========
+ai:
+  enabled: false
+  provider: "deepseek"        # openai, deepseek, or custom
+  apiKey: ""                  # Set via env: OPENAI_API_KEY or DEEPSEEK_API_KEY
+  model: "deepseek-chat"      # gpt-4o, gpt-4o-mini, deepseek-chat, deepseek-v4-flash
+  endpoint: ""                # Custom endpoint (leave blank for default)
+  maxTokens: 1024
+  temperature: 0.3
+  connectTimeout: 30
+  readTimeout: 60
+  maxRetries: 2
+
+  # 🩺 1️⃣ 失败智能诊断
+  failureAnalysis:
+    enabled: true
+    includePageSource: true   # 是否发送页面 DOM 给 AI
+    includeStackTrace: true   # 是否发送堆栈信息
+
+  # 🔧 2️⃣ 定位器自愈
+  selfHealing:
+    enabled: true
+    maxCandidates: 3          # 最多尝试几个 AI 推荐的备选定位器
+    timeoutMs: 5000           # 每个备选定位器的查找超时
+
+  # 📊 3️⃣ 自然语言报告
+  report:
+    enabled: true
+    verbose: false            # 是否在报告中列出每个通过用例
+
+  # 👁️ 7️⃣ 视觉 AI 测试
+  visual:
+    enabled: true
+    maxImageSizeKB: 200       # 截图超过此大小自动压缩
+    autoCompress: true        # 自动压缩过大截图
+
+  # 🔍 8️⃣ DOM 变更影响分析
+  domChange:
+    enabled: true
+    snapshotDir: "dom-snapshots"
+    autoCapture: false        # 是否每次测试自动捕获 DOM 快照
+    maxElementsPerSnapshot: 200
+
+# ========== ♿ 无障碍检测 ==========
+accessibility:
+  enabled: true               # 是否启用自动无障碍扫描
+  onSuccessOnly: false        # 仅在测试成功时扫描（false = 成功+失败都扫）
+  minImpactLevel: "serious"   # 最低告警严重度: critical / serious / moderate / minor
+  maxViolations: 50           # 超过此数量发出告警

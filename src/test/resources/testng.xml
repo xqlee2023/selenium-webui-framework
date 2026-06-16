@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!--
+  TestNG Suite Configuration
+
+  运行命令:
+    mvn test                                              # 全部测试
+    mvn test -Dtest=MockLoginUITest                       # Mock 登录测试
+    mvn test -Dtest=MockOrderFlowUITest                   # Mock 下单测试
+    mvn test -Dtest=MockCartUITest                        # Mock 购物车测试
+    mvn test -Dtest=LoginUITest,DashboardTest             # 真实浏览器测试
+    mvn test -Dgroups=smoke                               # 冒烟测试
+    mvn test -Dbrowser=firefox                            # 指定浏览器
+-->
+<suite name="WebUI Automation Suite" verbose="2" configfailurepolicy="continue">
+
+    <listeners>
+        <listener class-name="com.framework.core.listener.TestListener"/>
+    </listeners>
+
+    <!-- ===== 冒烟测试 ===== -->
+    <test name="Smoke Tests" group-by-instances="true">
+        <groups>
+            <run><include name="smoke"/></run>
+        </groups>
+        <packages>
+            <package name="com.framework.testcases.*"/>
+        </packages>
+    </test>
+
+    <!-- ===== 回归测试 ===== -->
+    <test name="Regression Tests" group-by-instances="true">
+        <groups>
+            <run><include name="regression"/></run>
+        </groups>
+        <packages>
+            <package name="com.framework.testcases.*"/>
+        </packages>
+    </test>
+
+    <!-- ===== Mock 学习模式（无需浏览器，零依赖） ===== -->
+    <test name="Mock Learning Tests" group-by-instances="true">
+        <packages>
+            <package name="com.framework.testcases.mock.*"/>
+        </packages>
+    </test>
+
+    <!-- ===== 全量测试 ===== -->
+    <test name="All Tests" group-by-instances="true">
+        <packages>
+            <package name="com.framework.testcases.*"/>
+        </packages>
+    </test>
+
+    <!-- ===== Demo 测试（不参与 CI 主流程，需手动触发） ===== -->
+    <test name="AI Demo Tests" group-by-instances="true">
+        <packages>
+            <package name="com.framework.demo.*"/>
+        </packages>
+    </test>
+
+</suite>
+
+    <!-- ===== Demo 测试（不参与 CI 主流程，需手动触发） ===== -->
+    <test name="AI Demo Tests" group-by-instances="true">
+        <packages>
+            <package name="com.framework.demo.*"/>
+        </packages>
+    </test>
+
+    <!-- ===== Demo 测试（不参与 CI 主流程，需手动触发） ===== -->
+    <test name="AI Demo Tests" group-by-instances="true">
+        <packages>
+            <package name="com.framework.demo.*"/>
+        </packages>
+    </test>
+
+</suite>

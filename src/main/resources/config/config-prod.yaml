@@ -1,0 +1,14 @@
+# =====================================================================
+# Production / smoke test overrides
+# =====================================================================
+# Run with: mvn test -Pprod
+# ⚠️ Production tests should be read-only smoke checks
+
+baseUrl: "https://example.com"
+browserOptions:
+  headless: true
+execution:
+  parallelCount: 2
+reporting:
+  retryOnFailure: false
+  retryCount: 0

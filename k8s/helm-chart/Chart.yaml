@@ -1,0 +1,10 @@
+apiVersion: v2
+name: selenium-webui-tests
+description: A Helm chart for running Selenium WebUI tests on Kubernetes
+type: application
+version: 1.0.0
+appVersion: "2.0.0"
+keywords:
+  - selenium
+  - test-automation
+  - allure
